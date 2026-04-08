@@ -3,22 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Polity Audio Studio - Mobile Pro</title>
+    <title>Polity Audio Studio - Pro</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 30px; background-color: #f8f9fa; color: #333; }
-        .container { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 550px; }
-        h2 { text-align: center; color: #1a73e8; margin-bottom: 15px; font-size: 22px; }
-        textarea { width: 100%; height: 200px; padding: 15px; border-radius: 12px; border: 2px solid #ddd; font-size: 16px; box-sizing: border-box; resize: none; outline: none; }
-        textarea:focus { border-color: #1a73e8; }
-        .settings { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
-        select { padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; cursor: pointer; background: #fff; }
-        .controls { margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        button { padding: 15px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 15px; transition: 0.2s; }
-        #playPauseBtn { background-color: #1a73e8; color: white; }
-        #recordBtn { background-color: #34a853; color: white; }
-        #stopBtn { background-color: #d93025; color: white; display: none; grid-column: span 2; }
-        #downloadLink { margin-top: 20px; display: none; text-align: center; padding: 15px; background: #e8f0fe; border-radius: 10px; color: #1a73e8; font-weight: bold; text-decoration: none; border: 1px dashed #1a73e8; }
-        .status-bar { margin-top: 15px; font-size: 13px; color: #5f6368; text-align: center; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background-color: #f0f2f5; color: #1c1e21; }
+        .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 450px; }
+        h2 { text-align: center; color: #1877f2; font-size: 20px; margin-top: 0; }
+        textarea { width: 100%; height: 180px; padding: 12px; border-radius: 10px; border: 1px solid #dddfe2; font-size: 16px; box-sizing: border-box; resize: none; margin-bottom: 15px; outline: none; }
+        textarea:focus { border-color: #1877f2; }
+        .settings { margin-bottom: 15px; }
+        select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; background: #fff; font-size: 15px; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button { padding: 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; }
+        #playPauseBtn { background-color: #e7f3ff; color: #1877f2; }
+        #recordBtn { background-color: #42b72a; color: white; }
+        #stopBtn { background-color: #f02849; color: white; display: none; grid-column: span 2; }
+        #downloadBtn { margin-top: 15px; width: 100%; background-color: #1877f2; color: white; display: none; text-align: center; text-decoration: none; padding: 14px; box-sizing: border-box; border-radius: 8px; font-weight: bold; }
+        .status { margin-top: 10px; font-size: 12px; color: #65676b; text-align: center; font-weight: 500; }
     </style>
 </head>
 <body>
@@ -29,131 +29,141 @@
     <textarea id="textInput" placeholder="Paste your questions here..."></textarea>
     
     <div class="settings">
-        <label style="font-size: 13px; font-weight: bold;">CHOOSE VOICE STYLE:</label>
         <select id="genderSelect">
-            <option value="female" selected>Smooth Female Voice (Recommended)</option>
+            <option value="female" selected>Smooth Female Voice</option>
             <option value="male">Professional Male Voice</option>
         </select>
     </div>
 
     <div class="controls">
         <button id="playPauseBtn">▶ Play</button>
-        <button id="recordBtn">🎙️ Start Recording</button>
-        <button id="stopBtn">⏹️ Stop & Save for WhatsApp</button>
+        <button id="recordBtn">🎙️ Start Record</button>
+        <button id="stopBtn">⏹️ Stop & Save</button>
     </div>
 
-    <p id="statusLabel" class="status-bar">Status: Ready</p>
-    <a id="downloadLink">Download MP3 for WhatsApp</a>
+    <a id="downloadBtn" href="#">📥 Download MP3 Audio</a>
+    <p id="statusLabel" class="status">Tap Play to start...</p>
 </div>
 
 <script>
     const playPauseBtn = document.getElementById('playPauseBtn');
     const recordBtn = document.getElementById('recordBtn');
     const stopBtn = document.getElementById('stopBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
     const textInput = document.getElementById('textInput');
     const genderSelect = document.getElementById('genderSelect');
     const statusLabel = document.getElementById('statusLabel');
-    const downloadLink = document.getElementById('downloadLink');
 
     let mediaRecorder;
     let audioChunks = [];
     let isPaused = false;
+    let synth = window.speechSynthesis;
+
+    // Mobile Voice Pre-load
+    function initVoices() { synth.getVoices(); }
+    synth.onvoiceschanged = initVoices;
+    initVoices();
 
     function getBestVoice(gender) {
-        const voices = window.speechSynthesis.getVoices();
-        // Priority 1: Google Voices (Highest quality/Smooth)
-        // Priority 2: Natural sounding names
-        const englishVoices = voices.filter(v => v.lang.includes('en'));
-
+        const voices = synth.getVoices();
+        const enVoices = voices.filter(v => v.lang.includes('en'));
         if (gender === 'male') {
-            return englishVoices.find(v => v.name.includes('Google UK English Male') || v.name.includes('David')) || englishVoices[0];
+            return enVoices.find(v => v.name.toLowerCase().includes('male') || v.name.includes('David')) || enVoices[0];
         } else {
-            return englishVoices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha') || v.name.includes('Zira')) || englishVoices[1] || englishVoices[0];
+            return enVoices.find(v => v.name.toLowerCase().includes('female') || v.name.includes('Google US English') || v.name.includes('Samantha') || v.name.includes('Zira')) || enVoices[1] || enVoices[0];
         }
     }
 
-    function speak() {
-        if (isPaused) {
-            window.speechSynthesis.resume();
+    function togglePlay() {
+        if (synth.speaking && !isPaused) {
+            // PAUSE LOGIC
+            synth.pause();
+            isPaused = true;
+            playPauseBtn.innerHTML = "▶ Resume";
+            statusLabel.innerText = "Status: Paused";
+        } else if (isPaused) {
+            // RESUME LOGIC
+            synth.resume();
             isPaused = false;
             playPauseBtn.innerHTML = "⏸ Pause";
-            return;
+            statusLabel.innerText = "Status: Speaking...";
+        } else {
+            // NEW START LOGIC
+            startSpeaking();
         }
+    }
 
-        window.speechSynthesis.cancel(); 
-
+    function startSpeaking() {
+        synth.cancel(); // Clear any existing speech
+        
         let text = textInput.value;
-        text = text.replace(/Q\s*:/gi, "Question: ");
-        text = text.replace(/A\s*:/gi, "Answer: ");
+        if (!text) { statusLabel.innerText = "Please enter text!"; return; }
+
+        // Formatting replacements
+        text = text.replace(/Q\s*:/gi, "Question: ").replace(/A\s*:/gi, "Answer: ");
         text = text.replace(/\b(\d{2})(\d{2})\b/g, "$1 $2"); // Year Fix (1773 -> 17 73)
 
-        const utterance = new SpeechSynthesisUtterance(text || "No text found.");
-        const selectedVoice = getBestVoice(genderSelect.value);
-        utterance.voice = selectedVoice;
-        
-        // --- SMOOTHNESS SETTINGS ---
-        utterance.rate = 0.88; // Slightly slower is smoother
-        utterance.pitch = (genderSelect.value === 'female') ? 1.1 : 1.0; // Higher pitch for female makes it "lighter"
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.voice = getBestVoice(genderSelect.value);
+        utterance.rate = 0.9;
+        utterance.pitch = (genderSelect.value === 'female') ? 1.1 : 1.0;
 
         utterance.onstart = () => {
             playPauseBtn.innerHTML = "⏸ Pause";
-            statusLabel.innerText = "Status: Speaking (" + selectedVoice.name + ")";
+            statusLabel.innerText = "Status: Speaking...";
         };
 
         utterance.onend = () => {
-            isPaused = false;
             playPauseBtn.innerHTML = "▶ Play";
             statusLabel.innerText = "Status: Finished.";
+            isPaused = false;
         };
 
-        window.speechSynthesis.speak(utterance);
+        synth.speak(utterance);
+        
+        // Mobile "Kick" Fix
+        if (synth.paused) synth.resume();
     }
 
-    playPauseBtn.onclick = () => {
-        if (window.speechSynthesis.speaking && !isPaused) {
-            window.speechSynthesis.pause();
-            isPaused = true;
-            playPauseBtn.innerHTML = "▶ Resume";
-        } else {
-            speak();
-        }
-    };
+    playPauseBtn.onclick = togglePlay;
 
     recordBtn.onclick = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            // Using a high-quality audio bitrate
-            mediaRecorder = new MediaRecorder(stream, { audioBitsPerSecond: 128000 });
+            let mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm';
+
+            mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
             
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.onstop = () => {
-                const blob = new Blob(audioChunks, { type: 'audio/mpeg' }); // Set type to mpeg
-                const url = URL.createObjectURL(blob);
-                downloadLink.href = url;
-                // Renaming to .mp3 makes it compatible with WhatsApp/Mobile
-                downloadLink.download = 'polity_notes_' + Date.now() + '.mp3';
-                downloadLink.style.display = 'block';
-                statusLabel.innerText = "Status: Click below to download!";
+                const audioBlob = new Blob(audioChunks, { type: mimeType });
+                const url = URL.createObjectURL(audioBlob);
+                downloadBtn.href = url;
+                downloadBtn.download = `Polity_Note_${Date.now()}.mp3`;
+                downloadBtn.style.display = 'block';
+                statusLabel.innerText = "MP3 Ready!";
             };
 
             mediaRecorder.start();
-            statusLabel.innerText = "Status: 🔴 RECORDING... (Play the voice now)";
+            statusLabel.innerText = "🔴 RECORDING...";
             recordBtn.style.display = 'none';
             stopBtn.style.display = 'block';
-            if(textInput.value) speak();
-        } catch (err) { alert("Please allow Mic access."); }
+            downloadBtn.style.display = 'none';
+            
+            setTimeout(startSpeaking, 600); 
+        } catch (err) {
+            alert("Mic access required to record.");
+        }
     };
 
     stopBtn.onclick = () => {
-        mediaRecorder.stop();
-        window.speechSynthesis.cancel();
+        if (mediaRecorder) mediaRecorder.stop();
+        synth.cancel();
         recordBtn.style.display = 'inline-block';
         stopBtn.style.display = 'none';
         playPauseBtn.innerHTML = "▶ Play";
     };
-
-    window.speechSynthesis.getVoices();
 </script>
 
 </body>
