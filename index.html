@@ -59,9 +59,11 @@
     let isPaused = false;
     let synth = window.speechSynthesis;
 
-    // Mobile Voice Pre-load
+    // Mobile Fix: Keep engine warm
     function initVoices() { synth.getVoices(); }
-    synth.onvoiceschanged = initVoices;
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = initVoices;
+    }
     initVoices();
 
     function getBestVoice(gender) {
@@ -70,58 +72,55 @@
         if (gender === 'male') {
             return enVoices.find(v => v.name.toLowerCase().includes('male') || v.name.includes('David')) || enVoices[0];
         } else {
-            return enVoices.find(v => v.name.toLowerCase().includes('female') || v.name.includes('Google US English') || v.name.includes('Samantha') || v.name.includes('Zira')) || enVoices[1] || enVoices[0];
+            return enVoices.find(v => v.name.toLowerCase().includes('female') || v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Zira')) || enVoices[1] || enVoices[0];
         }
     }
 
     function togglePlay() {
         if (synth.speaking && !isPaused) {
-            // PAUSE LOGIC
             synth.pause();
             isPaused = true;
             playPauseBtn.innerHTML = "▶ Resume";
-            statusLabel.innerText = "Status: Paused";
         } else if (isPaused) {
-            // RESUME LOGIC
             synth.resume();
             isPaused = false;
             playPauseBtn.innerHTML = "⏸ Pause";
-            statusLabel.innerText = "Status: Speaking...";
         } else {
-            // NEW START LOGIC
             startSpeaking();
         }
     }
 
     function startSpeaking() {
-        synth.cancel(); // Clear any existing speech
+        synth.cancel(); 
         
         let text = textInput.value;
-        if (!text) { statusLabel.innerText = "Please enter text!"; return; }
+        if (!text) return;
 
-        // Formatting replacements
+        // 1. Convert Q: and A:
         text = text.replace(/Q\s*:/gi, "Question: ").replace(/A\s*:/gi, "Answer: ");
-        text = text.replace(/\b(\d{2})(\d{2})\b/g, "$1 $2"); // Year Fix (1773 -> 17 73)
+
+        // 2. YEAR FIX: 1773 becomes "17, 73" which forces the engine to say Seventeen Seventy Three
+        text = text.replace(/\b(\d{2})(\d{2})\b/g, "$1, $2"); 
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.voice = getBestVoice(genderSelect.value);
-        utterance.rate = 0.9;
-        utterance.pitch = (genderSelect.value === 'female') ? 1.1 : 1.0;
+        utterance.rate = 0.88; 
+        utterance.pitch = (genderSelect.value === 'female') ? 1.05 : 1.0;
 
         utterance.onstart = () => {
             playPauseBtn.innerHTML = "⏸ Pause";
-            statusLabel.innerText = "Status: Speaking...";
+            statusLabel.innerText = "Speaking...";
         };
 
         utterance.onend = () => {
             playPauseBtn.innerHTML = "▶ Play";
-            statusLabel.innerText = "Status: Finished.";
+            statusLabel.innerText = "Finished.";
             isPaused = false;
         };
 
         synth.speak(utterance);
         
-        // Mobile "Kick" Fix
+        // Mobile Fix: Force wake-up
         if (synth.paused) synth.resume();
     }
 
@@ -130,17 +129,15 @@
     recordBtn.onclick = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            let mimeType = MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : 'audio/webm';
-
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
             
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunks, { type: mimeType });
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 const url = URL.createObjectURL(audioBlob);
                 downloadBtn.href = url;
-                downloadBtn.download = `Polity_Note_${Date.now()}.mp3`;
+                downloadBtn.download = `StudyNote_${Date.now()}.mp3`;
                 downloadBtn.style.display = 'block';
                 statusLabel.innerText = "MP3 Ready!";
             };
