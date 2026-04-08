@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polity Audio Studio - Mobile Pro</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 30px; background-color: #f8f9fa; color: #333; }
+        .container { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 550px; }
+        h2 { text-align: center; color: #1a73e8; margin-bottom: 15px; font-size: 22px; }
+        textarea { width: 100%; height: 200px; padding: 15px; border-radius: 12px; border: 2px solid #ddd; font-size: 16px; box-sizing: border-box; resize: none; outline: none; }
+        textarea:focus { border-color: #1a73e8; }
+        .settings { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
+        select { padding: 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 15px; cursor: pointer; background: #fff; }
+        .controls { margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button { padding: 15px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 15px; transition: 0.2s; }
+        #playPauseBtn { background-color: #1a73e8; color: white; }
+        #recordBtn { background-color: #34a853; color: white; }
+        #stopBtn { background-color: #d93025; color: white; display: none; grid-column: span 2; }
+        #downloadLink { margin-top: 20px; display: none; text-align: center; padding: 15px; background: #e8f0fe; border-radius: 10px; color: #1a73e8; font-weight: bold; text-decoration: none; border: 1px dashed #1a73e8; }
+        .status-bar { margin-top: 15px; font-size: 13px; color: #5f6368; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📜 Polity Audio Studio</h2>
+    
+    <textarea id="textInput" placeholder="Paste your questions here..."></textarea>
+    
+    <div class="settings">
+        <label style="font-size: 13px; font-weight: bold;">CHOOSE VOICE STYLE:</label>
+        <select id="genderSelect">
+            <option value="female" selected>Smooth Female Voice (Recommended)</option>
+            <option value="male">Professional Male Voice</option>
+        </select>
+    </div>
+
+    <div class="controls">
+        <button id="playPauseBtn">▶ Play</button>
+        <button id="recordBtn">🎙️ Start Recording</button>
+        <button id="stopBtn">⏹️ Stop & Save for WhatsApp</button>
+    </div>
+
+    <p id="statusLabel" class="status-bar">Status: Ready</p>
+    <a id="downloadLink">Download MP3 for WhatsApp</a>
+</div>
+
+<script>
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const recordBtn = document.getElementById('recordBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const textInput = document.getElementById('textInput');
+    const genderSelect = document.getElementById('genderSelect');
+    const statusLabel = document.getElementById('statusLabel');
+    const downloadLink = document.getElementById('downloadLink');
+
+    let mediaRecorder;
+    let audioChunks = [];
+    let isPaused = false;
+
+    function getBestVoice(gender) {
+        const voices = window.speechSynthesis.getVoices();
+        // Priority 1: Google Voices (Highest quality/Smooth)
+        // Priority 2: Natural sounding names
+        const englishVoices = voices.filter(v => v.lang.includes('en'));
+
+        if (gender === 'male') {
+            return englishVoices.find(v => v.name.includes('Google UK English Male') || v.name.includes('David')) || englishVoices[0];
+        } else {
+            return englishVoices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha') || v.name.includes('Zira')) || englishVoices[1] || englishVoices[0];
+        }
+    }
+
+    function speak() {
+        if (isPaused) {
+            window.speechSynthesis.resume();
+            isPaused = false;
+            playPauseBtn.innerHTML = "⏸ Pause";
+            return;
+        }
+
+        window.speechSynthesis.cancel(); 
+
+        let text = textInput.value;
+        text = text.replace(/Q\s*:/gi, "Question: ");
+        text = text.replace(/A\s*:/gi, "Answer: ");
+        text = text.replace(/\b(\d{2})(\d{2})\b/g, "$1 $2"); // Year Fix (1773 -> 17 73)
+
+        const utterance = new SpeechSynthesisUtterance(text || "No text found.");
+        const selectedVoice = getBestVoice(genderSelect.value);
+        utterance.voice = selectedVoice;
+        
+        // --- SMOOTHNESS SETTINGS ---
+        utterance.rate = 0.88; // Slightly slower is smoother
+        utterance.pitch = (genderSelect.value === 'female') ? 1.1 : 1.0; // Higher pitch for female makes it "lighter"
+
+        utterance.onstart = () => {
+            playPauseBtn.innerHTML = "⏸ Pause";
+            statusLabel.innerText = "Status: Speaking (" + selectedVoice.name + ")";
+        };
+
+        utterance.onend = () => {
+            isPaused = false;
+            playPauseBtn.innerHTML = "▶ Play";
+            statusLabel.innerText = "Status: Finished.";
+        };
+
+        window.speechSynthesis.speak(utterance);
+    }
+
+    playPauseBtn.onclick = () => {
+        if (window.speechSynthesis.speaking && !isPaused) {
+            window.speechSynthesis.pause();
+            isPaused = true;
+            playPauseBtn.innerHTML = "▶ Resume";
+        } else {
+            speak();
+        }
+    };
+
+    recordBtn.onclick = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Using a high-quality audio bitrate
+            mediaRecorder = new MediaRecorder(stream, { audioBitsPerSecond: 128000 });
+            audioChunks = [];
+            
+            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(audioChunks, { type: 'audio/mpeg' }); // Set type to mpeg
+                const url = URL.createObjectURL(blob);
+                downloadLink.href = url;
+                // Renaming to .mp3 makes it compatible with WhatsApp/Mobile
+                downloadLink.download = 'polity_notes_' + Date.now() + '.mp3';
+                downloadLink.style.display = 'block';
+                statusLabel.innerText = "Status: Click below to download!";
+            };
+
+            mediaRecorder.start();
+            statusLabel.innerText = "Status: 🔴 RECORDING... (Play the voice now)";
+            recordBtn.style.display = 'none';
+            stopBtn.style.display = 'block';
+            if(textInput.value) speak();
+        } catch (err) { alert("Please allow Mic access."); }
+    };
+
+    stopBtn.onclick = () => {
+        mediaRecorder.stop();
+        window.speechSynthesis.cancel();
+        recordBtn.style.display = 'inline-block';
+        stopBtn.style.display = 'none';
+        playPauseBtn.innerHTML = "▶ Play";
+    };
+
+    window.speechSynthesis.getVoices();
+</script>
+
+</body>
+</html>
